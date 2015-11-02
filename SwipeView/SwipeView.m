@@ -100,6 +100,8 @@
     _wrapEnabled = NO;
     _itemsPerPage = 1;
     _truncateFinalPage = NO;
+	_itemsToPreloadForward = 0;
+	_itemsToPreloadBackward = 0;
     _defersItemViewLoading = NO;
     _vertical = NO;
     
@@ -546,7 +548,9 @@
             view.center = CGPointMake(center.x, _scrollView.frame.size.height/2.0f);
         }
         
+        _suppressScrollEvent = YES;
         view.bounds = CGRectMake(0.0f, 0.0f, _itemSize.width, _itemSize.height);
+        _suppressScrollEvent = NO;
         
         if (disableAnimation && animationEnabled) [UIView setAnimationsEnabled:YES];
     }
@@ -951,11 +955,27 @@
             NSInteger index = [self clampedIndex:i + startIndex];
             [visibleIndices addObject:@(index)];
         }
-        
+        		
+		NSMutableSet *preloadedIndices = [NSMutableSet setWithCapacity:_itemsToPreloadForward + _itemsToPreloadBackward];
+		for (NSInteger i = 0; i <= _itemsToPreloadForward; i++)
+		{
+			NSInteger index = [self clampedIndex:startIndex + i];
+            if (index<self.numberOfItems) {
+                [preloadedIndices addObject:@(index)];
+            }
+		}
+		
+		for (NSInteger i = 0; i <= _itemsToPreloadBackward; i++)
+		{
+			NSInteger index = [self clampedIndex:startIndex - i];
+            if (index<self.numberOfItems) {
+                [preloadedIndices addObject:@(index)];
+            }
+		}
         //remove offscreen views
         for (NSNumber *number in [_itemViews allKeys])
         {
-            if (![visibleIndices containsObject:number])
+            if (![visibleIndices containsObject:number] && ![preloadedIndices containsObject:number])
             {
                 UIView *view = _itemViews[number];
                 [self queueItemView:view];
@@ -966,6 +986,16 @@
         
         //add onscreen views
         for (NSNumber *number in visibleIndices)
+        {
+            UIView *view = _itemViews[number];
+            if (view == nil)
+            {
+                [self loadViewAtIndex:[number integerValue]];
+            }
+        }		
+
+		//add preloadedViews
+        for (NSNumber *number in preloadedIndices)
         {
             UIView *view = _itemViews[number];
             if (view == nil)
